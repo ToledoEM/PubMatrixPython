@@ -1,0 +1,4 @@
+,WNT1,WNT2,CTNNB1
+obesity,"=HYPERLINK(""https://www.ncbi.nlm.nih.gov/pubmed/?term=WNT1%20AND%20obesity"",""63"")","=HYPERLINK(""https://www.ncbi.nlm.nih.gov/pubmed/?term=WNT2%20AND%20obesity"",""6"")","=HYPERLINK(""https://www.ncbi.nlm.nih.gov/pubmed/?term=CTNNB1%20AND%20obesity"",""90"")"
+diabetes,"=HYPERLINK(""https://www.ncbi.nlm.nih.gov/pubmed/?term=WNT1%20AND%20diabetes"",""118"")","=HYPERLINK(""https://www.ncbi.nlm.nih.gov/pubmed/?term=WNT2%20AND%20diabetes"",""18"")","=HYPERLINK(""https://www.ncbi.nlm.nih.gov/pubmed/?term=CTNNB1%20AND%20diabetes"",""267"")"
+cancer,"=HYPERLINK(""https://www.ncbi.nlm.nih.gov/pubmed/?term=WNT1%20AND%20cancer"",""1278"")","=HYPERLINK(""https://www.ncbi.nlm.nih.gov/pubmed/?term=WNT2%20AND%20cancer"",""297"")","=HYPERLINK(""https://www.ncbi.nlm.nih.gov/pubmed/?term=CTNNB1%20AND%20cancer"",""8363"")"
