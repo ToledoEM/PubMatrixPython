@@ -18,6 +18,9 @@ wheels/
 # uv lock file
 uv.lock
 
+# dev / local-only notebooks
+dev/
+
 # Status bank files
 CLAUDE*.md
 .claude/
