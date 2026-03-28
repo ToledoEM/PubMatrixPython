@@ -15,6 +15,9 @@ wheels/
 # Environment
 .env
 
+# uv lock file
+uv.lock
+
 # Status bank files
 CLAUDE*.md
 .claude/
