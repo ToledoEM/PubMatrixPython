@@ -3,19 +3,24 @@ name = "pubmatrixpython"
 version = "0.1.0"
 description = "Python port of PubMatrixR — systematic literature co-occurrence analysis via NCBI PubMed"
 license = {file = "LICENSE.md"}
-requires-python = ">=3.13"
+requires-python = ">=3.10"
 dependencies = [
-    "matplotlib>=3.10.8",
-    "odfpy>=1.4.1",
-    "pandas>=3.0.1",
-    "requests>=2.33.0",
-    "scipy>=1.17.1",
-    "seaborn>=0.13.2",
-    "tqdm>=4.67.3",
+    "matplotlib>=3.10,<4",
+    "pandas>=2.0,<4",
+    "requests>=2.33,<3",
+    "scipy>=1.10,<2",
+    "seaborn>=0.13,<1",
+    "tqdm>=4.60,<5",
 ]
+
+[project.optional-dependencies]
+ods = ["odfpy>=1.4.1"]
 
 [dependency-groups]
 dev = [
-    "ipykernel>=7.2.0",
-    "jupyter>=1.1.1",
+    "ipykernel>=6.0",
+    "jupyter>=1.1",
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.5",
 ]
