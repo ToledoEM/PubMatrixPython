@@ -1,6 +1,6 @@
 [project]
 name = "pubmatrixpython"
-version = "0.1.0"
+version = "0.2.0"
 description = "Python port of PubMatrixR — systematic literature co-occurrence analysis via NCBI PubMed"
 license = {file = "LICENSE.md"}
 requires-python = ">=3.10"

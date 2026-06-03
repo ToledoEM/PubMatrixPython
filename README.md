@@ -1,6 +1,10 @@
-# PubMatrixPython v0.1
+# PubMatrixPython v0.2
 
 <img src="https://toledoem.github.io/img/LogoPubmatrixP.png" align="right" width="150"/>
+
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+![Tests](https://img.shields.io/badge/tests-60%20passed-brightgreen)
+![License](https://img.shields.io/badge/license-MIT-green)
 
 Python port of the [PubMatrixR](https://github.com/ToledoEM/PubMatrixR-v2) R package.
 
