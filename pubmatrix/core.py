@@ -5,10 +5,14 @@ Mirrors the R PubMatrixR package (https://github.com/ToledoEM/PubMatrixR-v2).
 Reference: Becker et al. (2003) BMC Bioinformatics 4:61. doi:10.1186/1471-2105-4-61
 """
 
+import hashlib
+import json
+import logging
 import math
 import time
 import urllib.parse
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from itertools import product
 from pathlib import Path
 
@@ -16,11 +20,17 @@ import pandas as pd
 import requests
 from tqdm import tqdm
 
+logger = logging.getLogger(__name__)
+
 NCBI_BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
 PUBMED_SEARCH_BASE = "https://www.ncbi.nlm.nih.gov/{db}/?term={term}"
 
 VALID_DATABASES = {"pubmed", "pmc"}
 VALID_EXPORT_FORMATS = {None, "csv", "ods"}
+
+# NCBI enforces 3 req/s without an API key, 10 req/s with one.
+_RATE_LIMIT_DEFAULT = 3
+_RATE_LIMIT_API_KEY = 10
 
 
 # ---------------------------------------------------------------------------
@@ -45,17 +55,32 @@ def _extract_count(xml_text: str) -> int:
     return int(text)
 
 
-def _fetch_count(base_url: str, encoded_term: str, n_tries: int = 2) -> int:
+def _fetch_count(
+    base_url: str,
+    encoded_term: str,
+    n_tries: int = 2,
+    timeout: int = 30,
+    cache_dir: Path | None = None,
+) -> int:
     """Fetch publication count for a single search term with retry logic."""
     url = f"{base_url}&term={encoded_term}&usehistory=y"
-    last_error = None
 
+    if cache_dir is not None:
+        cache_key = hashlib.md5(url.encode()).hexdigest()
+        cache_file = cache_dir / f"{cache_key}.json"
+        if cache_file.exists():
+            return json.loads(cache_file.read_text())["count"]
+
+    last_error = None
     for attempt in range(n_tries):
         try:
-            response = requests.get(url, timeout=30)
+            response = requests.get(url, timeout=timeout)
             response.raise_for_status()
-            return _extract_count(response.text)
-        except Exception as e:
+            count = _extract_count(response.text)
+            if cache_dir is not None:
+                cache_file.write_text(json.dumps({"count": count, "url": url}))
+            return count
+        except requests.RequestException as e:
             last_error = e
             if attempt < n_tries - 1:
                 time.sleep(0.25 * (attempt + 1))
@@ -117,6 +142,9 @@ def pubmatrix(
     outfile: str | None = None,
     export_format: str | None = None,
     n_tries: int = 2,
+    n_workers: int = 1,
+    timeout: int = 30,
+    cache_dir: str | None = None,
 ) -> pd.DataFrame:
     """
     Query PubMed/PMC and build a pairwise co-occurrence matrix.
@@ -141,6 +169,14 @@ def pubmatrix(
         None (no export), 'csv', or 'ods'.
     n_tries : int
         Number of retry attempts for failed requests (default 2).
+    n_workers : int
+        Number of parallel workers for concurrent queries (default 1 = serial).
+        Set >1 to speed up large matrices; rate limits are respected automatically.
+    timeout : int
+        HTTP request timeout in seconds (default 30).
+    cache_dir : str, optional
+        Directory to cache query results. Identical queries are loaded from disk
+        instead of re-fetching from NCBI.
 
     Returns
     -------
@@ -156,6 +192,12 @@ def pubmatrix(
 
     if database not in VALID_DATABASES:
         raise ValueError(f"database must be one of {VALID_DATABASES}, got {database!r}")
+
+    if n_tries < 1:
+        raise ValueError(f"n_tries must be >= 1, got {n_tries}")
+
+    if n_workers < 1:
+        raise ValueError(f"n_workers must be >= 1, got {n_workers}")
 
     daterange = _validate_daterange(daterange)
 
@@ -178,10 +220,43 @@ def pubmatrix(
 
     base_url = _build_base_url(database, api_key, daterange)
 
+    # Resolve cache directory once
+    resolved_cache = Path(cache_dir) if cache_dir else None
+    if resolved_cache is not None:
+        resolved_cache.mkdir(parents=True, exist_ok=True)
+
+    # NCBI rate: 3/s without key, 10/s with key
+    rate_limit = _RATE_LIMIT_API_KEY if api_key else _RATE_LIMIT_DEFAULT
+    min_interval = 1.0 / rate_limit
+
     # --- Fetch counts ---
-    counts = []
-    for encoded in tqdm(encoded_terms, desc="Querying NCBI", unit="query"):
-        counts.append(_fetch_count(base_url, encoded, n_tries=n_tries))
+    counts_map: dict[int, int] = {}
+
+    if n_workers == 1:
+        # Serial path — simple and predictable
+        for idx, encoded in enumerate(tqdm(encoded_terms, desc="Querying NCBI", unit="query")):
+            counts_map[idx] = _fetch_count(
+                base_url, encoded, n_tries=n_tries, timeout=timeout, cache_dir=resolved_cache
+            )
+            time.sleep(min_interval)
+    else:
+        # Concurrent path — submit all, throttle via sleep between submissions
+        with tqdm(total=len(encoded_terms), desc="Querying NCBI", unit="query") as pbar:
+            with ThreadPoolExecutor(max_workers=n_workers) as executor:
+                future_to_idx = {}
+                for idx, encoded in enumerate(encoded_terms):
+                    future = executor.submit(
+                        _fetch_count, base_url, encoded, n_tries, timeout, resolved_cache
+                    )
+                    future_to_idx[future] = idx
+                    time.sleep(min_interval)
+
+                for future in as_completed(future_to_idx):
+                    idx = future_to_idx[future]
+                    counts_map[idx] = future.result()
+                    pbar.update(1)
+
+    counts = [counts_map[i] for i in range(len(encoded_terms))]
 
     if len(counts) != len(B) * len(A):
         raise RuntimeError(
@@ -189,6 +264,7 @@ def pubmatrix(
         )
 
     # --- Assemble matrix (rows=B, cols=A) ---
+    # product(B, A) iterates rows first, so index into the flattened list as [row * n_cols + col]
     data = {}
     for j, a in enumerate(A):
         data[a] = [counts[i * len(A) + j] for i in range(len(B))]
@@ -257,7 +333,11 @@ def _make_hyperlink_formula(url: str, value: int) -> str:
 
 
 def _export_csv(df: pd.DataFrame, outfile: str, database: str) -> None:
-    """Export matrix to CSV with Excel HYPERLINK formulas."""
+    """
+    Export matrix to CSV with Excel HYPERLINK formulas.
+
+    Each cell contains a formula linking to the corresponding PubMed/PMC search.
+    """
     path = Path(outfile).with_suffix(".csv")
     rows = []
 
@@ -272,11 +352,16 @@ def _export_csv(df: pd.DataFrame, outfile: str, database: str) -> None:
 
     export_df = pd.DataFrame(rows, index=df.index)
     export_df.to_csv(path)
-    print(f"Saved CSV to {path}")
+    logger.info("Saved CSV to %s", path)
 
 
 def _export_ods(df: pd.DataFrame, outfile: str, database: str) -> None:
-    """Export matrix to ODS with hyperlinks."""
+    """
+    Export matrix to ODS with clickable hyperlinks.
+
+    Each cell contains a hyperlink to the corresponding PubMed/PMC search,
+    displayed as the publication count.
+    """
     from odf.opendocument import OpenDocumentSpreadsheet
     from odf.style import Style, TextProperties
     from odf.table import Table, TableRow, TableCell
@@ -323,4 +408,4 @@ def _export_ods(df: pd.DataFrame, outfile: str, database: str) -> None:
 
     doc.spreadsheet.addElement(table)
     doc.save(str(path))
-    print(f"Saved ODS to {path}")
+    logger.info("Saved ODS to %s", path)

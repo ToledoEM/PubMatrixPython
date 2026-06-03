@@ -4,6 +4,7 @@ PubMatrix heatmap visualisation — mirrors heatmap_functions.R from PubMatrixR.
 Provides overlap-percentage heatmaps with optional hierarchical clustering.
 """
 
+import logging
 import warnings
 
 import matplotlib.pyplot as plt
@@ -11,9 +12,11 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.figure import Figure
 from scipy.cluster.hierarchy import dendrogram, linkage
 from scipy.spatial.distance import pdist
 
+logger = logging.getLogger(__name__)
 
 # Default red gradient matching R pheatmap palette
 _RED_GRADIENT = ["#fee5d9", "#fcae91", "#fb6a4a", "#de2d26", "#99000d"]
@@ -69,7 +72,7 @@ def _clustered_order(arr: np.ndarray) -> list[int]:
     """Return row indices reordered by Euclidean distance / average linkage."""
     if arr.shape[0] < 2:
         return list(range(arr.shape[0]))
-    if np.all(arr == arr[0]):  # no variation — skip clustering
+    if np.allclose(arr, arr[0]):  # no variation — skip clustering
         return list(range(arr.shape[0]))
     dist = pdist(arr, metric="euclidean")
     Z = linkage(dist, method="average")
@@ -101,7 +104,8 @@ def plot_pubmatrix_heatmap(
     width: float = 10,
     height: float = 8,
     scale_font: bool = True,
-) -> plt.Axes:
+    show: bool = False,
+) -> tuple[Figure, plt.Axes]:
     """
     Create a publication-ready heatmap of PubMatrix co-occurrence results.
 
@@ -121,15 +125,17 @@ def plot_pubmatrix_heatmap(
     color_palette : list of str, optional
         Custom hex color list for gradient. Defaults to red gradient.
     filename : str, optional
-        Save to this path (PNG). If None, display inline.
+        Save to this path (PNG). If None, the figure is not saved automatically.
     width, height : float
         Figure size in inches.
     scale_font : bool
         Auto-scale annotation font size based on matrix dimensions.
+    show : bool
+        Call plt.show() after plotting (default False). Useful in interactive sessions.
 
     Returns
     -------
-    matplotlib.axes.Axes
+    tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]
     """
     # --- Input handling ---
     row_labels = list(matrix.index) if isinstance(matrix, pd.DataFrame) else None
@@ -181,14 +187,15 @@ def plot_pubmatrix_heatmap(
 
     if filename:
         fig.savefig(filename, dpi=150, bbox_inches="tight")
-        print(f"Saved heatmap to {filename}")
-    else:
+        logger.info("Saved heatmap to %s", filename)
+
+    if show:
         plt.show()
 
-    return ax
+    return fig, ax
 
 
-def pubmatrix_heatmap(matrix, title: str = "PubMatrix Results") -> plt.Axes:
+def pubmatrix_heatmap(matrix, title: str = "PubMatrix Results") -> tuple[Figure, plt.Axes]:
     """
     Convenience wrapper for plot_pubmatrix_heatmap() with default parameters.
 
@@ -201,6 +208,6 @@ def pubmatrix_heatmap(matrix, title: str = "PubMatrix Results") -> plt.Axes:
 
     Returns
     -------
-    matplotlib.axes.Axes
+    tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]
     """
     return plot_pubmatrix_heatmap(matrix, title=title)
