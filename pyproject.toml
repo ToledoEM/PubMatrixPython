@@ -7,7 +7,8 @@ name = "pubmatrixpython"
 version = "0.2.0"
 description = "Python port of PubMatrixR — systematic literature co-occurrence analysis via NCBI PubMed"
 readme = "README.md"
-license = {file = "LICENSE.md"}
+license = "MIT"
+license-files = ["LICENSE.md", "LICENSE"]
 authors = [
     { name = "Enrique Toledo", email = "enriquetoledo@gmail.com" }
 ]
