@@ -14,6 +14,29 @@ Based on: Becker et al. (2003) *PubMatrix: a tool for multiplex literature minin
 
 ---
 
+## Key features
+
+- **Pairwise literature search** — automatically searches every combination of terms from two lists
+- **PubMed or PMC** — query MEDLINE abstracts or PMC full text via NCBI E-utilities
+- **Heatmap visualisation** — overlap-percentage heatmaps with optional hierarchical clustering
+- **Export to CSV or ODS** — results include clickable hyperlinks to the matching PubMed search
+- **Date filtering** — restrict searches to a publication year range
+- **Flexible input** — pass term lists directly, or load them from a text file
+- **Concurrency** — `n_workers` for parallel queries, respecting NCBI rate limits
+- **Disk caching** — `cache_dir` persists query results between runs
+- **Progress tracking** — built-in progress bar for long searches
+
+## Use cases
+
+- **Gene–disease association studies** — explore literature connections between genes and diseases
+- **Pathway analysis** — investigate co-occurrence of genes within or across biological pathways
+- **Drug–target research** — analyse relationships between compounds and potential targets
+- **Systematic literature reviews** — quantify research coverage across multiple topics
+- **Knowledge gap identification** — find under-researched combinations of terms
+- **Bibliometric analysis** — measure research activity in a domain over time
+
+---
+
 ## Setup
 
 Requires [uv](https://docs.astral.sh/uv/). Install it with:
@@ -86,7 +109,7 @@ result = pubmatrix(
     database="pubmed",
     daterange=[2010, 2024],   # optional date filter
     outfile="results",
-    export_format="csv",      # saves results.csv with PubMed hyperlinks
+    export_format="csv",      # saves results_result.csv with PubMed hyperlinks
 )
 
 print(result)
@@ -139,14 +162,17 @@ Query PubMed and return a `pandas.DataFrame` (rows = B, cols = A).
 
 ```python
 pubmatrix(
-    A,                        # list of str — column terms
-    B,                        # list of str — row terms
-    api_key=None,             # NCBI API key (10 req/s vs 3 req/s default)
-    database="pubmed",        # "pubmed" or "pmc"
-    daterange=None,           # e.g. [2015, 2024]
-    outfile=None,             # base filename for export
-    export_format=None,       # None | "csv" | "ods"
-    n_tries=2,                # retries on network failure
+    A,                    # list of str — column terms
+    B,                    # list of str — row terms
+    api_key=None,         # NCBI API key (10 req/s vs 3 req/s default)
+    database="pubmed",    # "pubmed" or "pmc"
+    daterange=None,       # e.g. [2015, 2024]
+    outfile=None,         # base filename for export
+    export_format=None,   # None | "csv" | "ods"
+    n_tries=2,            # retries on network failure
+    n_workers=1,          # parallel workers for concurrent queries
+    timeout=30,           # HTTP request timeout in seconds
+    cache_dir=None,       # directory to cache query results on disk
 )
 ```
 
@@ -169,10 +195,10 @@ result = pubmatrix_from_file("terms.txt", database="pubmed")
 
 ### `plot_pubmatrix_heatmap(matrix, ...)`
 
-Heatmap of overlap percentages with optional hierarchical clustering.
+Heatmap of overlap percentages with optional hierarchical clustering. Returns `(fig, ax)`.
 
 ```python
-plot_pubmatrix_heatmap(
+fig, ax = plot_pubmatrix_heatmap(
     matrix,                                        # DataFrame from pubmatrix()
     title="PubMatrix Co-occurrence Heatmap",
     cluster_rows=True,
@@ -182,12 +208,28 @@ plot_pubmatrix_heatmap(
     filename=None,                                 # save to PNG if set
     width=10, height=8,
     scale_font=True,
+    show=False,                                    # call plt.show() after plotting
 )
 ```
 
 ### `pubmatrix_heatmap(matrix, title=...)`
 
-Quick wrapper around `plot_pubmatrix_heatmap()` with all defaults.
+Quick wrapper around `plot_pubmatrix_heatmap()` with all defaults. Returns `(fig, ax)`.
+
+---
+
+## Output files
+
+When `outfile` and `export_format` are set, results are written to
+`{outfile}_result.{extension}` (`.csv` or `.ods`). Each cell contains the
+publication count and a hyperlink to the matching PubMed search. Row names
+come from `B`, column names from `A`.
+
+ODS export requires the optional `odfpy` dependency:
+
+```bash
+pip install pubmatrixpython[ods]
+```
 
 ---
 
@@ -199,3 +241,27 @@ Get one at https://account.ncbi.nlm.nih.gov/
 ```python
 result = pubmatrix(A=A, B=B, api_key="YOUR_KEY_HERE")
 ```
+
+---
+
+## More documentation
+
+- [Performance notes](docs/performance.md) — rate limits, caching, concurrency
+- [Troubleshooting](docs/troubleshooting.md) — empty results, rate limiting, slow searches
+- [Full reference notebook](https://toledoem.github.io/pubmatrixp/) — every parameter and feature, with output
+
+---
+
+## License & citation
+
+This project is licensed under the MIT License — see [`LICENSE.md`](LICENSE.md).
+
+If you use PubMatrixPython in your research, please cite:
+
+> Becker KG, Hosack DA, Dennis G Jr, Lempicki RA, Bright TJ, Cheadle C, Engel J.
+> *PubMatrix: a tool for multiplex literature mining.*
+> BMC Bioinformatics. 2003 Dec 10;4:61. https://doi.org/10.1186/1471-2105-4-61
+
+**Developers:**
+- Tyler Laird (Author, original PubMatrixR)
+- Enrique Toledo (Author, maintainer)
