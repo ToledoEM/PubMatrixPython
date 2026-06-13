@@ -1,18 +1,43 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "pubmatrixpython"
 version = "0.2.0"
 description = "Python port of PubMatrixR — systematic literature co-occurrence analysis via NCBI PubMed"
+readme = "README.md"
 license = {file = "LICENSE.md"}
+authors = [
+    { name = "Enrique Toledo", email = "enriquetoledo@gmail.com" }
+]
 requires-python = ">=3.10"
+keywords = ["pubmed", "literature-mining", "bioinformatics", "ncbi", "co-occurrence"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+]
 dependencies = [
     "matplotlib>=3.10,<4",
-    "odfpy>=1.4.1",
     "pandas>=2.0,<4",
     "requests>=2.33,<3",
     "scipy>=1.10,<2",
     "seaborn>=0.13,<1",
     "tqdm>=4.60,<5",
 ]
+
+[project.urls]
+Homepage = "https://toledoem.github.io/pubmatrixp/"
+Repository = "https://github.com/ToledoEM/PubMatrixPython"
+Changelog = "https://github.com/ToledoEM/PubMatrixPython/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 ods = ["odfpy>=1.4.1"]
@@ -25,3 +50,6 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.5",
 ]
+
+[tool.hatch.build.targets.wheel]
+packages = ["pubmatrix"]

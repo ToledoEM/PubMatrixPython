@@ -2236,10 +2236,9 @@ wheels = [
 [[package]]
 name = "pubmatrixpython"
 version = "0.2.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "matplotlib" },
-    { name = "odfpy" },
     { name = "pandas", version = "2.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "pandas", version = "3.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "requests" },
@@ -2266,7 +2265,6 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "matplotlib", specifier = ">=3.10,<4" },
-    { name = "odfpy", specifier = ">=1.4.1" },
     { name = "odfpy", marker = "extra == 'ods'", specifier = ">=1.4.1" },
     { name = "pandas", specifier = ">=2.0,<4" },
     { name = "requests", specifier = ">=2.33,<3" },
