@@ -5,6 +5,7 @@
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![Tests](https://img.shields.io/badge/tests-60%20passed-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
+[![PyPI](https://img.shields.io/pypi/v/pubmatrixpython)](https://pypi.org/project/pubmatrixpython/)
 
 Python port of the [PubMatrixR](https://github.com/ToledoEM/PubMatrixR-v2) R package.
 
@@ -37,7 +38,37 @@ Based on: Becker et al. (2003) *PubMatrix: a tool for multiplex literature minin
 
 ---
 
-## Setup
+## Installation
+
+Install from PyPI with your package manager of choice.
+
+### pip
+
+```bash
+pip install pubmatrixpython
+```
+
+### uv
+
+```bash
+uv add pubmatrixpython
+```
+
+### pixi
+
+```bash
+pixi add --pypi pubmatrixpython
+```
+
+ODS export requires the optional `odfpy` dependency:
+
+```bash
+pip install pubmatrixpython[ods]
+```
+
+---
+
+## Development setup
 
 Requires [uv](https://docs.astral.sh/uv/). Install it with:
 
@@ -225,11 +256,7 @@ When `outfile` and `export_format` are set, results are written to
 publication count and a hyperlink to the matching PubMed search. Row names
 come from `B`, column names from `A`.
 
-ODS export requires the optional `odfpy` dependency:
-
-```bash
-pip install pubmatrixpython[ods]
-```
+ODS export requires the optional `odfpy` dependency — see [Installation](#installation).
 
 ---
 
