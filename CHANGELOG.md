@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.3.0] — 2026-08-22
+
+Parity with [PubMatrixR 1.0.1](https://github.com/ToledoEM/PubMatrixR-v2/blob/main/NEWS.md).
+
+### Breaking changes
+
+- `plot_pubmatrix_heatmap()` and `pubmatrix_heatmap()` now plot raw co-occurrence counts by
+  default, and take a new `values` argument to choose otherwise. Earlier versions always plotted
+  a percentage the docs called `intersection / union * 100`, but the totals in that formula were
+  row and column sums of whatever matrix you passed in, not the publication counts for each term
+  on its own. Adding an unrelated term changed the number shown in every other cell. The old
+  calculation is still there as `values="relative"`, now documented with that caveat.
+  `values="row_pct"` divides each count by its row total.
+- `pubmatrix()` rejects duplicate terms within `A` or within `B` instead of silently producing an
+  ambiguous matrix.
+- Queries drop `usehistory=y` and set `retmax=0`, so responses no longer carry PMIDs the package
+  never looks at. **This changes the cache key** — entries written by earlier versions are ignored
+  and will be re-fetched once.
+
+### Bug fixes
+
+- Query terms are now built as `"A AND B"`, matching the hyperlink written on export. Counts were
+  unaffected (the query is symmetric), but the exported link was not the URL that had been queried.
+- Term file parse errors name the offending file, and distinguish "no terms before `#`" from
+  "no terms after `#`".
+- A matrix where every plotted value is identical now warns and draws a single-colour heatmap with
+  an explicit colour range.
+
+### Other improvements
+
+- Failed queries back off exponentially between retries, and the default `n_tries` is now 3.
+- Heatmap cells are formatted as integers for `values="raw"` and to one decimal for the percentage
+  views; the colourbar label follows the selected `values`.
+- Clustering now runs on the matrix that is actually plotted, not always on the percentages.
+- Test suite grew from 60 to 83 tests.
+
 ## [0.2.0] — 2026-06-03
 
 - `n_workers` parameter for concurrent NCBI queries (respects rate limits automatically)

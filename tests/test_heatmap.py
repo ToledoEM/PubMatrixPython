@@ -13,8 +13,10 @@ from matplotlib.figure import Figure
 from pubmatrix.heatmap import (
     _auto_font_size,
     _clustered_order,
+    _display_values,
     _handle_na,
     _overlap_percentage,
+    _row_percentage,
     _to_numeric_matrix,
     plot_pubmatrix_heatmap,
     pubmatrix_heatmap,
@@ -102,6 +104,41 @@ class TestOverlapPercentage:
 
 
 # ---------------------------------------------------------------------------
+# _row_percentage / _display_values
+# ---------------------------------------------------------------------------
+
+class TestRowPercentage:
+    def test_rows_sum_to_100(self, sample_matrix):
+        arr = _to_numeric_matrix(sample_matrix)
+        pct = _row_percentage(arr)
+        np.testing.assert_allclose(pct.sum(axis=1), 100.0, atol=0.1)
+
+    def test_zero_row_stays_zero(self):
+        arr = np.array([[0.0, 0.0], [1.0, 3.0]])
+        pct = _row_percentage(arr)
+        assert (pct[0] == 0.0).all()
+        np.testing.assert_allclose(pct[1], [25.0, 75.0])
+
+
+class TestDisplayValues:
+    def test_raw_is_unchanged(self, sample_matrix):
+        arr = _to_numeric_matrix(sample_matrix)
+        np.testing.assert_array_equal(_display_values(arr, "raw"), arr)
+
+    def test_row_pct_matches_helper(self, sample_matrix):
+        arr = _to_numeric_matrix(sample_matrix)
+        np.testing.assert_allclose(
+            _display_values(arr, "row_pct"), _row_percentage(arr)
+        )
+
+    def test_relative_matches_helper(self, sample_matrix):
+        arr = _to_numeric_matrix(sample_matrix)
+        np.testing.assert_allclose(
+            _display_values(arr, "relative"), np.round(_overlap_percentage(arr), 1)
+        )
+
+
+# ---------------------------------------------------------------------------
 # _clustered_order
 # ---------------------------------------------------------------------------
 
@@ -181,8 +218,49 @@ class TestPlotPubmatrixHeatmap:
         assert fig is not None
 
     def test_single_cell(self, single_cell_matrix):
-        fig, ax = plot_pubmatrix_heatmap(single_cell_matrix)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            fig, ax = plot_pubmatrix_heatmap(single_cell_matrix)
         assert fig is not None
+
+    def test_default_plots_raw_counts(self, sample_matrix):
+        fig, ax = plot_pubmatrix_heatmap(sample_matrix, cluster_rows=False,
+                                         cluster_cols=False)
+        annotated = sorted(float(t.get_text()) for t in ax.texts)
+        assert annotated == sorted(float(v) for v in sample_matrix.values.ravel())
+
+    def test_raw_uses_integer_format(self, sample_matrix):
+        fig, ax = plot_pubmatrix_heatmap(sample_matrix)
+        assert all("." not in t.get_text() for t in ax.texts)
+
+    def test_row_pct_annotations_sum_to_100_per_row(self, sample_matrix):
+        fig, ax = plot_pubmatrix_heatmap(sample_matrix, values="row_pct",
+                                         cluster_rows=False, cluster_cols=False)
+        annotated = [float(t.get_text()) for t in ax.texts]
+        assert len(annotated) == sample_matrix.size
+        assert sum(annotated) == pytest.approx(300.0, abs=0.5)  # 3 rows × 100
+
+    def test_relative_matches_overlap_helper(self, sample_matrix):
+        fig, ax = plot_pubmatrix_heatmap(sample_matrix, values="relative",
+                                         cluster_rows=False, cluster_cols=False)
+        annotated = sorted(float(t.get_text()) for t in ax.texts)
+        expected = sorted(
+            np.round(_overlap_percentage(_to_numeric_matrix(sample_matrix)), 1).ravel()
+        )
+        assert annotated == pytest.approx(expected)
+
+    def test_invalid_values_raises(self, sample_matrix):
+        with pytest.raises(ValueError, match="values must be one of"):
+            plot_pubmatrix_heatmap(sample_matrix, values="jaccard")
+
+    def test_uniform_matrix_warns_and_plots(self, uniform_matrix):
+        with pytest.warns(UserWarning, match="All plotted values are identical"):
+            fig, ax = plot_pubmatrix_heatmap(uniform_matrix)
+        assert isinstance(fig, Figure)
+
+    def test_cbar_label_follows_values(self, sample_matrix):
+        fig, ax = plot_pubmatrix_heatmap(sample_matrix, values="row_pct")
+        assert fig.axes[-1].get_ylabel() == "Row %"
 
 
 # ---------------------------------------------------------------------------
@@ -193,3 +271,11 @@ class TestPubmatrixHeatmap:
     def test_returns_fig_and_ax(self, sample_matrix):
         fig, ax = pubmatrix_heatmap(sample_matrix)
         assert isinstance(fig, Figure)
+
+    def test_defaults_to_raw(self, sample_matrix):
+        fig, ax = pubmatrix_heatmap(sample_matrix)
+        assert fig.axes[-1].get_ylabel() == "Count"
+
+    def test_values_passed_through(self, sample_matrix):
+        fig, ax = pubmatrix_heatmap(sample_matrix, values="relative")
+        assert fig.axes[-1].get_ylabel() == "Overlap %"

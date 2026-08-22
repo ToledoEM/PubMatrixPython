@@ -12,6 +12,11 @@ wheels/
 # Jupyter
 .ipynb_checkpoints/
 
+# Test / coverage artifacts
+.pytest_cache/
+.coverage
+coverage.xml
+
 # Environment
 .env
 

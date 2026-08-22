@@ -58,12 +58,13 @@ def _extract_count(xml_text: str) -> int:
 def _fetch_count(
     base_url: str,
     encoded_term: str,
-    n_tries: int = 2,
+    n_tries: int = 3,
     timeout: int = 30,
     cache_dir: Path | None = None,
 ) -> int:
     """Fetch publication count for a single search term with retry logic."""
-    url = f"{base_url}&term={encoded_term}&usehistory=y"
+    # retmax=0 keeps NCBI from returning PMIDs we never read; only <Count> matters.
+    url = f"{base_url}&term={encoded_term}&retmax=0"
 
     if cache_dir is not None:
         cache_key = hashlib.md5(url.encode()).hexdigest()
@@ -83,11 +84,29 @@ def _fetch_count(
         except requests.RequestException as e:
             last_error = e
             if attempt < n_tries - 1:
-                time.sleep(0.25 * (attempt + 1))
+                # Exponential backoff: a rate-limited request retried
+                # immediately is simply rate-limited again.
+                time.sleep(0.25 * 2 ** attempt)
 
     raise RuntimeError(
         f"Failed to fetch count after {n_tries} attempts for term {encoded_term!r}: {last_error}"
     )
+
+
+def _reject_duplicates(terms: list[str], name: str) -> None:
+    """Raise if a term list repeats a term, naming the offenders."""
+    seen: set[str] = set()
+    repeated: list[str] = []
+    for term in terms:
+        if term in seen and term not in repeated:
+            repeated.append(term)
+        seen.add(term)
+
+    if repeated:
+        raise ValueError(
+            f"{name} must not contain duplicate terms; repeated: "
+            + ", ".join(repr(t) for t in repeated)
+        )
 
 
 def _validate_daterange(daterange):
@@ -141,7 +160,7 @@ def pubmatrix(
     daterange=None,
     outfile: str | None = None,
     export_format: str | None = None,
-    n_tries: int = 2,
+    n_tries: int = 3,
     n_workers: int = 1,
     timeout: int = 30,
     cache_dir: str | None = None,
@@ -168,7 +187,8 @@ def pubmatrix(
     export_format : str, optional
         None (no export), 'csv', or 'ods'.
     n_tries : int
-        Number of retry attempts for failed requests (default 2).
+        Number of attempts per query before giving up (default 3). Failed
+        attempts back off exponentially.
     n_workers : int
         Number of parallel workers for concurrent queries (default 1 = serial).
         Set >1 to speed up large matrices; rate limits are respected automatically.
@@ -212,10 +232,16 @@ def pubmatrix(
     if any(not t for t in B):
         raise ValueError("B contains empty or whitespace-only terms")
 
+    # Cells are assigned positionally below, but duplicate names would still
+    # make the result ambiguous to index — reject them outright.
+    _reject_duplicates(A, "A")
+    _reject_duplicates(B, "B")
+
     # --- Build queries ---
     pairs = list(product(B, A))  # rows × cols, matches R expand.grid(B, A)
+    # Query "A AND B" so the term matches the hyperlink built on export.
     encoded_terms = [
-        urllib.parse.quote(f"{b} AND {a}") for b, a in pairs
+        urllib.parse.quote(f"{a} AND {b}") for b, a in pairs
     ]
 
     base_url = _build_base_url(database, api_key, daterange)
@@ -311,14 +337,18 @@ def pubmatrix_from_file(filepath: str, **kwargs) -> pd.DataFrame:
     lines = [ln for ln in lines if ln]  # drop blank lines
 
     if "#" not in lines:
-        raise ValueError("File must contain a '#' line separating A and B terms")
+        raise ValueError(
+            f"File must contain a '#' line separating A and B terms: {filepath}"
+        )
 
     sep = lines.index("#")
     A = lines[:sep]
     B = lines[sep + 1:]
 
-    if not A or not B:
-        raise ValueError("File must contain terms both before and after the '#' separator")
+    if not A:
+        raise ValueError(f"No terms found before the '#' separator in: {filepath}")
+    if not B:
+        raise ValueError(f"No terms found after the '#' separator in: {filepath}")
 
     return pubmatrix(A=A, B=B, **kwargs)
 
