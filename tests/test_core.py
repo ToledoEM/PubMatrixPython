@@ -1,5 +1,6 @@
 """Tests for pubmatrix.core."""
 
+import urllib.parse
 import xml.etree.ElementTree as ET
 from unittest.mock import MagicMock, patch
 
@@ -112,12 +113,29 @@ class TestFetchCount:
             with pytest.raises(RuntimeError, match="Failed to fetch count"):
                 _fetch_count("http://fake", "term", n_tries=2)
 
+    def test_url_has_retmax_zero_and_no_usehistory(self):
+        with patch("pubmatrix.core.requests.get") as mock_get:
+            mock_get.return_value = self._mock_response(VALID_XML)
+            _fetch_count("http://fake", "term")
+        url = mock_get.call_args[0][0]
+        assert "retmax=0" in url
+        assert "usehistory" not in url
+
+    def test_backoff_is_exponential(self):
+        with patch("pubmatrix.core.requests.get") as mock_get, \
+             patch("pubmatrix.core.time.sleep") as mock_sleep:
+            mock_get.side_effect = requests.ConnectionError("down")
+            with pytest.raises(RuntimeError):
+                _fetch_count("http://fake", "term", n_tries=3)
+        assert [c.args[0] for c in mock_sleep.call_args_list] == [0.25, 0.5]
+
     def test_cache_hit_skips_network(self, tmp_path):
         import json
+        url = "http://fake&term=x&retmax=0"
         cache_file = tmp_path / (
-            __import__("hashlib").md5(b"http://fake&term=x&usehistory=y").hexdigest() + ".json"
+            __import__("hashlib").md5(url.encode()).hexdigest() + ".json"
         )
-        cache_file.write_text(json.dumps({"count": 99, "url": "http://fake&term=x&usehistory=y"}))
+        cache_file.write_text(json.dumps({"count": 99, "url": url}))
 
         with patch("pubmatrix.core.requests.get") as mock_get:
             result = _fetch_count("http://fake", "x", cache_dir=tmp_path)
@@ -172,6 +190,22 @@ class TestPubmatrixValidation:
         with pytest.raises(ValueError, match="n_workers"):
             pubmatrix(["a"], ["b"], n_workers=0)
 
+    def test_duplicate_A_raises(self):
+        with pytest.raises(ValueError, match=r"A must not contain duplicate"):
+            pubmatrix(["a", "a"], ["b"])
+
+    def test_duplicate_B_raises(self):
+        with pytest.raises(ValueError, match=r"B must not contain duplicate"):
+            pubmatrix(["a"], ["b", "b"])
+
+    def test_duplicate_error_names_term(self):
+        with pytest.raises(ValueError, match="'a'"):
+            pubmatrix(["a", "a"], ["b"])
+
+    def test_duplicates_detected_after_stripping(self):
+        with pytest.raises(ValueError, match="duplicate"):
+            pubmatrix(["a", " a "], ["b"])
+
 
 # ---------------------------------------------------------------------------
 # pubmatrix() — DataFrame structure (mocked network)
@@ -203,6 +237,15 @@ class TestPubmatrixDataFrame:
         df = self._mock_fetch(count=7)
         assert (df.values == 7).all()
 
+    def test_query_terms_use_A_and_B_order(self):
+        with patch("pubmatrix.core._fetch_count", return_value=5) as mock_fetch, \
+             patch("pubmatrix.core.time.sleep"):
+            pubmatrix(["A1", "A2"], ["B1", "B2"])
+        queried = [
+            urllib.parse.unquote(call.args[1]) for call in mock_fetch.call_args_list
+        ]
+        assert queried == ["A1 AND B1", "A2 AND B1", "A1 AND B2", "A2 AND B2"]
+
 
 # ---------------------------------------------------------------------------
 # pubmatrix_from_file
@@ -217,18 +260,33 @@ class TestPubmatrixFromFile:
             df = pubmatrix_from_file(str(f))
         assert df.shape == (2, 2)
 
+    def test_blank_lines_ignored(self, tmp_path):
+        f = tmp_path / "blanks.txt"
+        f.write_text("A1\n\n  \nA2\n#\n\nB1\nB2\n\n")
+        with patch("pubmatrix.core._fetch_count", return_value=3), \
+             patch("pubmatrix.core.time.sleep"):
+            df = pubmatrix_from_file(str(f))
+        assert list(df.columns) == ["A1", "A2"]
+        assert list(df.index) == ["B1", "B2"]
+
     def test_missing_separator_raises(self, tmp_path):
         f = tmp_path / "bad.txt"
         f.write_text("A1\nA2\nB1\n")
-        with pytest.raises(ValueError, match="'#' line"):
+        with pytest.raises(ValueError, match="bad.txt"):
             pubmatrix_from_file(str(f))
 
     def test_file_not_found(self, tmp_path):
         with pytest.raises(FileNotFoundError):
             pubmatrix_from_file(str(tmp_path / "missing.txt"))
 
-    def test_empty_section_raises(self, tmp_path):
-        f = tmp_path / "empty.txt"
+    def test_no_terms_before_separator_raises(self, tmp_path):
+        f = tmp_path / "empty_a.txt"
         f.write_text("#\nB1\n")
-        with pytest.raises(ValueError, match="terms both before"):
+        with pytest.raises(ValueError, match="before the '#' separator in:.*empty_a.txt"):
+            pubmatrix_from_file(str(f))
+
+    def test_no_terms_after_separator_raises(self, tmp_path):
+        f = tmp_path / "empty_b.txt"
+        f.write_text("A1\n#\n")
+        with pytest.raises(ValueError, match="after the '#' separator in:.*empty_b.txt"):
             pubmatrix_from_file(str(f))

@@ -48,5 +48,15 @@ def all_zero_matrix():
 
 
 @pytest.fixture
+def uniform_matrix():
+    """Every cell holds the same non-zero count."""
+    return pd.DataFrame(
+        np.full((3, 3), 7, dtype=int),
+        index=["B1", "B2", "B3"],
+        columns=["A1", "A2", "A3"],
+    )
+
+
+@pytest.fixture
 def single_cell_matrix():
     return pd.DataFrame([[5]], index=["B1"], columns=["A1"])

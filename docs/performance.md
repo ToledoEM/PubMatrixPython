@@ -14,6 +14,12 @@ Total search time depends on:
 - **`n_workers`** — parallel queries, bounded by the NCBI rate limit
 - **Network speed** — each query is a round trip to `eutils.ncbi.nlm.nih.gov`
 
+## Retries
+
+Each query is attempted `n_tries` times (default 3), with exponential backoff
+between attempts — a rate-limited request retried immediately is simply
+rate-limited again.
+
 ## Caching
 
 Set `cache_dir` to write each query result to disk as JSON. Repeated calls
@@ -23,6 +29,10 @@ NCBI:
 ```python
 result = pubmatrix(A=A, B=B, cache_dir="cache", api_key=API_KEY)
 ```
+
+The cache key is derived from the request URL. Version 0.3.0 changed that URL
+(`usehistory=y` dropped, `retmax=0` added), so caches written by earlier
+versions are ignored and re-fetched once.
 
 ## Memory usage
 
