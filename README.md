@@ -1,46 +1,32 @@
-# PubMatrixPython v0.2
+# PubMatrixPython v0.3
 
 <img src="https://toledoem.github.io/img/LogoPubmatrixP.png" align="right" width="150"/>
 
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
-![Tests](https://img.shields.io/badge/tests-60%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-83%20passed-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 [![PyPI](https://img.shields.io/pypi/v/pubmatrixpython)](https://pypi.org/project/pubmatrixpython/)
+[![codecov](https://codecov.io/gh/ToledoEM/PubMatrixPython/graph/badge.svg?token=FI57AHLE8V)](https://codecov.io/gh/ToledoEM/PubMatrixPython)
 
 Python port of the [PubMatrixR](https://github.com/ToledoEM/PubMatrixR-v2) R package.
 
-For every pair of search terms `(A, B)`, it counts how many PubMed or PMC publications mention both. Good for mapping relationships between genes, diseases, and pathways across the literature.
+Give it two lists of search terms. For every pair, it asks PubMed or PMC how many publications mention both, and hands back the counts as a table. Useful when you want to know which gene/disease combinations the literature has actually covered, and which nobody has looked at.
 
 Based on: Becker et al. (2003) *PubMatrix: a tool for multiplex literature mining*. BMC Bioinformatics 4:61. https://doi.org/10.1186/1471-2105-4-61
 
 ---
 
-## Key features
+## What it does
 
-- **Pairwise literature search** — automatically searches every combination of terms from two lists
-- **PubMed or PMC** — query MEDLINE abstracts or PMC full text via NCBI E-utilities
-- **Heatmap visualisation** — overlap-percentage heatmaps with optional hierarchical clustering
-- **Export to CSV or ODS** — results include clickable hyperlinks to the matching PubMed search
-- **Date filtering** — restrict searches to a publication year range
-- **Flexible input** — pass term lists directly, or load them from a text file
-- **Concurrency** — `n_workers` for parallel queries, respecting NCBI rate limits
-- **Disk caching** — `cache_dir` persists query results between runs
-- **Progress tracking** — built-in progress bar for long searches
+Queries every combination of terms from your two lists against MEDLINE abstracts (`pubmed`) or full text (`pmc`) through the NCBI E-utilities. Results come back as a `pandas.DataFrame` and can be exported to CSV or ODS, where each cell links to the PubMed search that produced it.
 
-## Use cases
+You can restrict searches to a publication year range, pass terms directly or read them from a text file, and plot the result as a heatmap with optional clustering. Long runs show a progress bar.
 
-- **Gene–disease association studies** — explore literature connections between genes and diseases
-- **Pathway analysis** — investigate co-occurrence of genes within or across biological pathways
-- **Drug–target research** — analyse relationships between compounds and potential targets
-- **Systematic literature reviews** — quantify research coverage across multiple topics
-- **Knowledge gap identification** — find under-researched combinations of terms
-- **Bibliometric analysis** — measure research activity in a domain over time
+Two things worth knowing for larger matrices: `n_workers` runs queries in parallel while staying under the NCBI rate limit, and `cache_dir` keeps results on disk so a re-run does not re-query terms it has already seen.
 
 ---
 
 ## Installation
-
-Install from PyPI with your package manager of choice.
 
 ### pip
 
@@ -60,7 +46,7 @@ uv add pubmatrixpython
 pixi add --pypi pubmatrixpython
 ```
 
-ODS export requires the optional `odfpy` dependency:
+For ODS export you also need `odfpy`:
 
 ```bash
 pip install pubmatrixpython[ods]
@@ -88,14 +74,15 @@ uv sync --all-groups
 
 ## Running the notebooks
 
-All `uv` commands must be run from the **project root** (`PubMatrixPython/`), where `pyproject.toml` lives.
+Run every `uv` command from the project root, where `pyproject.toml` lives. It
+will not resolve the environment from anywhere else.
 
 ```bash
 cd /path/to/PubMatrixPython
 uv run jupyter lab
 ```
 
-Then open any notebook from the `notebooks/` folder in the browser.
+The notebooks are in `notebooks/`.
 
 | Notebook | What it covers |
 |----------|---------------|
@@ -104,9 +91,9 @@ Then open any notebook from the `notebooks/` folder in the browser.
 
 ---
 
-## Quick start (script or REPL)
+## Quick start
 
-### Interactive REPL
+### In the REPL
 
 ```bash
 uv run python
@@ -140,7 +127,7 @@ result = pubmatrix(
     database="pubmed",
     daterange=[2010, 2024],   # optional date filter
     outfile="results",
-    export_format="csv",      # saves results_result.csv with PubMed hyperlinks
+    export_format="csv",      # saves results.csv with PubMed hyperlinks
 )
 
 print(result)
@@ -179,9 +166,8 @@ result = pubmatrix_from_file("terms.txt")
 print(result)
 ```
 
-```bash
-uv run python my_analysis.py
-```
+Blank lines are ignored. If the `#` is missing, or either side of it is empty,
+you get an error naming the file.
 
 ---
 
@@ -189,7 +175,7 @@ uv run python my_analysis.py
 
 ### `pubmatrix(A, B, ...)`
 
-Query PubMed and return a `pandas.DataFrame` (rows = B, cols = A).
+Queries PubMed and returns a `pandas.DataFrame` with rows from `B` and columns from `A`.
 
 ```python
 pubmatrix(
@@ -200,7 +186,7 @@ pubmatrix(
     daterange=None,       # e.g. [2015, 2024]
     outfile=None,         # base filename for export
     export_format=None,   # None | "csv" | "ods"
-    n_tries=2,            # retries on network failure
+    n_tries=3,            # attempts per query, exponential backoff between them
     n_workers=1,          # parallel workers for concurrent queries
     timeout=30,           # HTTP request timeout in seconds
     cache_dir=None,       # directory to cache query results on disk
@@ -209,7 +195,8 @@ pubmatrix(
 
 ### `pubmatrix_from_file(filepath, ...)`
 
-Load terms from a plain-text file and run `pubmatrix()`.
+Reads terms from a plain-text file, then hands them to `pubmatrix()` along with
+any other arguments you pass.
 
 File format:
 ```
@@ -226,11 +213,13 @@ result = pubmatrix_from_file("terms.txt", database="pubmed")
 
 ### `plot_pubmatrix_heatmap(matrix, ...)`
 
-Heatmap of overlap percentages with optional hierarchical clustering. Returns `(fig, ax)`.
+Plots the co-occurrence counts, clustering rows and columns unless you turn that
+off. Returns `(fig, ax)`.
 
 ```python
 fig, ax = plot_pubmatrix_heatmap(
     matrix,                                        # DataFrame from pubmatrix()
+    values="raw",                                  # "raw" | "row_pct" | "relative"
     title="PubMatrix Co-occurrence Heatmap",
     cluster_rows=True,
     cluster_cols=True,
@@ -243,7 +232,22 @@ fig, ax = plot_pubmatrix_heatmap(
 )
 ```
 
-### `pubmatrix_heatmap(matrix, title=...)`
+`values` selects what each cell shows:
+
+| Value | Cell contents |
+|-------|---------------|
+| `"raw"` (default) | The co-occurrence counts themselves |
+| `"row_pct"` | Each count as a percentage of its row total |
+| `"relative"` | `count / (row_total + col_total - count) × 100` |
+
+A warning about `"relative"`: it is not a Jaccard index, and its numbers do not
+carry between runs. The totals in that formula are sums over whichever partner
+terms happen to be in your matrix, not the publication count for each term on
+its own, so adding one unrelated term shifts the value in every existing cell. A
+real Jaccard index would need the single-term counts, and `pubmatrix()` never
+fetches those. Compare cells within one fixed matrix and nothing beyond that.
+
+### `pubmatrix_heatmap(matrix, title=..., values="raw")`
 
 Quick wrapper around `plot_pubmatrix_heatmap()` with all defaults. Returns `(fig, ax)`.
 
@@ -251,12 +255,11 @@ Quick wrapper around `plot_pubmatrix_heatmap()` with all defaults. Returns `(fig
 
 ## Output files
 
-When `outfile` and `export_format` are set, results are written to
-`{outfile}_result.{extension}` (`.csv` or `.ods`). Each cell contains the
-publication count and a hyperlink to the matching PubMed search. Row names
-come from `B`, column names from `A`.
+Set `outfile` and `export_format` and the results are written to `{outfile}.csv`
+or `{outfile}.ods`. Every cell holds the publication count as a hyperlink to the
+search that produced it. Rows are named from `B`, columns from `A`.
 
-ODS export requires the optional `odfpy` dependency — see [Installation](#installation).
+ODS export needs the optional `odfpy` dependency. See [Installation](#installation).
 
 ---
 
@@ -273,15 +276,15 @@ result = pubmatrix(A=A, B=B, api_key="YOUR_KEY_HERE")
 
 ## More documentation
 
-- [Performance notes](docs/performance.md) — rate limits, caching, concurrency
-- [Troubleshooting](docs/troubleshooting.md) — empty results, rate limiting, slow searches
-- [Full reference notebook](https://toledoem.github.io/pubmatrixp/) — every parameter and feature, with output
+- [Performance notes](docs/performance.md) covers rate limits, retries, caching and concurrency
+- [Troubleshooting](docs/troubleshooting.md) covers empty results, rate limiting and slow searches
+- [Full reference notebook](https://toledoem.github.io/pubmatrixp/) walks through every parameter with output
 
 ---
 
 ## License & citation
 
-This project is licensed under the MIT License — see [`LICENSE.md`](LICENSE.md).
+MIT licensed. See [`LICENSE.md`](LICENSE.md).
 
 If you use PubMatrixPython in your research, please cite:
 
