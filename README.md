@@ -1,12 +1,12 @@
-# PubMatrixPython v0.3
+# PubMatrixPython
 
 <img src="https://toledoem.github.io/img/LogoPubmatrixP.png" align="right" width="150"/>
 
-![Python](https://img.shields.io/badge/python-3.10%2B-blue)
-![Tests](https://img.shields.io/badge/tests-83%20passed-brightgreen)
-![License](https://img.shields.io/badge/license-MIT-green)
 [![PyPI](https://img.shields.io/pypi/v/pubmatrixpython)](https://pypi.org/project/pubmatrixpython/)
+[![Python](https://img.shields.io/pypi/pyversions/pubmatrixpython)](https://pypi.org/project/pubmatrixpython/)
+[![test-coverage](https://github.com/ToledoEM/PubMatrixPython/actions/workflows/test-coverage.yml/badge.svg)](https://github.com/ToledoEM/PubMatrixPython/actions/workflows/test-coverage.yml)
 [![codecov](https://codecov.io/gh/ToledoEM/PubMatrixPython/graph/badge.svg?token=FI57AHLE8V)](https://codecov.io/gh/ToledoEM/PubMatrixPython)
+[![License](https://img.shields.io/pypi/l/pubmatrixpython)](LICENSE.md)
 
 Python port of the [PubMatrixR](https://github.com/ToledoEM/PubMatrixR-v2) R package.
 

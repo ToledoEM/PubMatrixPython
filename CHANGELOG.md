@@ -34,7 +34,11 @@ Parity with [PubMatrixR 1.0.1](https://github.com/ToledoEM/PubMatrixR-v2/blob/ma
 - Heatmap cells are formatted as integers for `values="raw"` and to one decimal for the percentage
   views; the colourbar label follows the selected `values`.
 - Clustering now runs on the matrix that is actually plotted, not always on the percentages.
-- Test suite grew from 60 to 83 tests.
+- Removed an unreachable count-length check in `pubmatrix()`. It was ported from R, where the
+  parallel map could return a short list; the Python version builds its result by index, so a
+  missing count already raises before the check could fire.
+- Test suite grew from 60 to 111 tests, covering the CSV and ODS export paths and the concurrent
+  `n_workers` branch for the first time. Coverage is at 100%.
 
 ## [0.2.0] — 2026-06-03
 

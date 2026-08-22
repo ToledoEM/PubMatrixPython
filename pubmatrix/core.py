@@ -284,11 +284,6 @@ def pubmatrix(
 
     counts = [counts_map[i] for i in range(len(encoded_terms))]
 
-    if len(counts) != len(B) * len(A):
-        raise RuntimeError(
-            f"Expected {len(B) * len(A)} counts, got {len(counts)}"
-        )
-
     # --- Assemble matrix (rows=B, cols=A) ---
     # product(B, A) iterates rows first, so index into the flattened list as [row * n_cols + col]
     data = {}

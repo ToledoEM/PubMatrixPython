@@ -10,8 +10,12 @@ import requests
 
 from pubmatrix.core import (
     _build_base_url,
+    _build_hyperlink_url,
+    _export_csv,
+    _export_ods,
     _extract_count,
     _fetch_count,
+    _make_hyperlink_formula,
     _validate_daterange,
     pubmatrix,
     pubmatrix_from_file,
@@ -73,6 +77,14 @@ class TestValidateDaterange:
     def test_start_after_end_raises(self):
         with pytest.raises(ValueError, match="must be <="):
             _validate_daterange([2020, 2010])
+
+    def test_infinite_value_raises(self):
+        with pytest.raises(ValueError, match="finite"):
+            _validate_daterange([2010, float("inf")])
+
+    def test_nan_value_raises(self):
+        with pytest.raises(ValueError, match="finite"):
+            _validate_daterange([float("nan"), 2020])
 
 
 # ---------------------------------------------------------------------------
@@ -182,6 +194,10 @@ class TestPubmatrixValidation:
         with pytest.raises(ValueError, match="empty or whitespace"):
             pubmatrix(["   "], ["b"])
 
+    def test_whitespace_terms_B(self):
+        with pytest.raises(ValueError, match="B contains empty or whitespace"):
+            pubmatrix(["a"], ["   "])
+
     def test_n_tries_zero_raises(self):
         with pytest.raises(ValueError, match="n_tries"):
             pubmatrix(["a"], ["b"], n_tries=0)
@@ -290,3 +306,223 @@ class TestPubmatrixFromFile:
         f.write_text("A1\n#\n")
         with pytest.raises(ValueError, match="after the '#' separator in:.*empty_b.txt"):
             pubmatrix_from_file(str(f))
+
+
+# ---------------------------------------------------------------------------
+# URL builders
+# ---------------------------------------------------------------------------
+
+class TestBuildBaseUrl:
+    def test_minimal_url(self):
+        url = _build_base_url("pubmed", None, None)
+        assert "db=pubmed" in url
+        assert "api_key" not in url
+        assert "mindate" not in url
+
+    def test_api_key_included(self):
+        url = _build_base_url("pubmed", "SECRET", None)
+        assert "api_key=SECRET" in url
+
+    def test_daterange_included(self):
+        url = _build_base_url("pmc", None, (2010, 2020))
+        assert "mindate=2010" in url
+        assert "maxdate=2020" in url
+        assert "datetype=pdat" in url
+
+    def test_api_key_and_daterange_together(self):
+        url = _build_base_url("pubmed", "KEY", (2015, 2016))
+        assert "api_key=KEY" in url and "mindate=2015" in url
+
+
+class TestBuildHyperlinkUrl:
+    def test_database_and_term_encoded(self):
+        url = _build_hyperlink_url("pubmed", "WNT1 AND obesity")
+        assert url.startswith("https://www.ncbi.nlm.nih.gov/pubmed/?term=")
+        assert "WNT1%20AND%20obesity" in url
+
+    def test_pmc_database(self):
+        assert "/pmc/" in _build_hyperlink_url("pmc", "x")
+
+
+class TestMakeHyperlinkFormula:
+    def test_formula_shape(self):
+        assert _make_hyperlink_formula("http://x", 7) == '=HYPERLINK("http://x","7")'
+
+
+# ---------------------------------------------------------------------------
+# Export helpers
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def export_df():
+    return pd.DataFrame(
+        [[10, 5], [3, 8]], index=["B1", "B2"], columns=["A1", "A2"]
+    )
+
+
+class TestExportCsv:
+    def test_writes_csv_next_to_outfile(self, export_df, tmp_path):
+        out = tmp_path / "results"
+        _export_csv(export_df, str(out), "pubmed")
+        assert (tmp_path / "results.csv").exists()
+
+    def test_suffix_not_doubled(self, export_df, tmp_path):
+        out = tmp_path / "results.csv"
+        _export_csv(export_df, str(out), "pubmed")
+        assert (tmp_path / "results.csv").exists()
+        assert not (tmp_path / "results.csv.csv").exists()
+
+    def test_cells_contain_hyperlink_formula(self, export_df, tmp_path):
+        out = tmp_path / "r"
+        _export_csv(export_df, str(out), "pubmed")
+        text = (tmp_path / "r.csv").read_text()
+        assert "=HYPERLINK(" in text
+        assert "WNT" not in text  # sanity: only our terms appear
+
+    def test_hyperlink_term_is_A_and_B_order(self, export_df, tmp_path):
+        out = tmp_path / "r"
+        _export_csv(export_df, str(out), "pubmed")
+        text = (tmp_path / "r.csv").read_text()
+        assert "A1%20AND%20B1" in text
+        assert "B1%20AND%20A1" not in text
+
+    def test_counts_preserved_in_formula(self, export_df, tmp_path):
+        out = tmp_path / "r"
+        _export_csv(export_df, str(out), "pubmed")
+        text = (tmp_path / "r.csv").read_text()
+        # to_csv doubles the quotes inside each formula
+        for count in ("10", "5", "3", "8"):
+            assert f'""{count}"")' in text
+
+    def test_row_and_column_labels_written(self, export_df, tmp_path):
+        out = tmp_path / "r"
+        _export_csv(export_df, str(out), "pubmed")
+        text = (tmp_path / "r.csv").read_text()
+        assert "A1" in text and "B1" in text
+
+    def test_pmc_database_in_urls(self, export_df, tmp_path):
+        out = tmp_path / "r"
+        _export_csv(export_df, str(out), "pmc")
+        assert "/pmc/?term=" in (tmp_path / "r.csv").read_text()
+
+
+class TestExportOds:
+    def test_writes_ods_file(self, export_df, tmp_path):
+        pytest.importorskip("odf")
+        out = tmp_path / "results"
+        _export_ods(export_df, str(out), "pubmed")
+        assert (tmp_path / "results.ods").exists()
+
+    def test_suffix_not_doubled(self, export_df, tmp_path):
+        pytest.importorskip("odf")
+        out = tmp_path / "results.ods"
+        _export_ods(export_df, str(out), "pubmed")
+        assert (tmp_path / "results.ods").exists()
+        assert not (tmp_path / "results.ods.ods").exists()
+
+    def test_cells_carry_links_and_counts(self, export_df, tmp_path):
+        pytest.importorskip("odf")
+        from odf.opendocument import load
+        from odf.table import Table, TableRow
+        from odf.text import A as OdfA
+
+        out = tmp_path / "r"
+        _export_ods(export_df, str(out), "pubmed")
+
+        doc = load(str(tmp_path / "r.ods"))
+        links = doc.getElementsByType(OdfA)
+        assert len(links) == export_df.size
+
+        hrefs = [
+            link.getAttribute("href") for link in links
+        ]
+        assert any("A1%20AND%20B1" in h for h in hrefs)
+
+        # header row plus one row per B term
+        table = doc.getElementsByType(Table)[0]
+        assert len(table.getElementsByType(TableRow)) == len(export_df.index) + 1
+
+    def test_pmc_database_in_urls(self, export_df, tmp_path):
+        pytest.importorskip("odf")
+        from odf.opendocument import load
+        from odf.text import A as OdfA
+
+        out = tmp_path / "r"
+        _export_ods(export_df, str(out), "pmc")
+        doc = load(str(tmp_path / "r.ods"))
+        hrefs = [
+            link.getAttribute("href") for link in doc.getElementsByType(OdfA)
+        ]
+        assert all("/pmc/?term=" in h for h in hrefs)
+
+
+# ---------------------------------------------------------------------------
+# pubmatrix() — export wiring and concurrent path
+# ---------------------------------------------------------------------------
+
+class TestPubmatrixExportWiring:
+    def test_csv_export_written(self, tmp_path):
+        out = tmp_path / "wired"
+        with patch("pubmatrix.core._fetch_count", return_value=4), \
+             patch("pubmatrix.core.time.sleep"):
+            pubmatrix(["A1"], ["B1"], outfile=str(out), export_format="csv")
+        assert (tmp_path / "wired.csv").exists()
+
+    def test_ods_export_written(self, tmp_path):
+        pytest.importorskip("odf")
+        out = tmp_path / "wired"
+        with patch("pubmatrix.core._fetch_count", return_value=4), \
+             patch("pubmatrix.core.time.sleep"):
+            pubmatrix(["A1"], ["B1"], outfile=str(out), export_format="ods")
+        assert (tmp_path / "wired.ods").exists()
+
+    def test_no_export_when_format_none(self, tmp_path):
+        out = tmp_path / "none"
+        with patch("pubmatrix.core._fetch_count", return_value=4), \
+             patch("pubmatrix.core.time.sleep"):
+            pubmatrix(["A1"], ["B1"], outfile=str(out))
+        assert list(tmp_path.iterdir()) == []
+
+
+class TestPubmatrixConcurrent:
+    def test_concurrent_path_matches_serial(self):
+        counts = {"A1 AND B1": 1, "A2 AND B1": 2, "A1 AND B2": 3, "A2 AND B2": 4}
+
+        def fake_fetch(base_url, encoded, *args, **kwargs):
+            return counts[urllib.parse.unquote(encoded)]
+
+        with patch("pubmatrix.core._fetch_count", side_effect=fake_fetch), \
+             patch("pubmatrix.core.time.sleep"):
+            serial = pubmatrix(["A1", "A2"], ["B1", "B2"], n_workers=1)
+            concurrent = pubmatrix(["A1", "A2"], ["B1", "B2"], n_workers=4)
+
+        pd.testing.assert_frame_equal(serial, concurrent)
+
+    def test_concurrent_results_land_in_right_cells(self):
+        counts = {"A1 AND B1": 1, "A2 AND B1": 2, "A1 AND B2": 3, "A2 AND B2": 4}
+
+        def fake_fetch(base_url, encoded, *args, **kwargs):
+            return counts[urllib.parse.unquote(encoded)]
+
+        with patch("pubmatrix.core._fetch_count", side_effect=fake_fetch), \
+             patch("pubmatrix.core.time.sleep"):
+            df = pubmatrix(["A1", "A2"], ["B1", "B2"], n_workers=4)
+
+        assert df.loc["B1", "A1"] == 1
+        assert df.loc["B1", "A2"] == 2
+        assert df.loc["B2", "A1"] == 3
+        assert df.loc["B2", "A2"] == 4
+
+    def test_concurrent_creates_cache_dir(self, tmp_path):
+        cache = tmp_path / "nested" / "cache"
+        with patch("pubmatrix.core._fetch_count", return_value=1), \
+             patch("pubmatrix.core.time.sleep"):
+            pubmatrix(["A1"], ["B1"], n_workers=2, cache_dir=str(cache))
+        assert cache.is_dir()
+
+    def test_worker_exception_propagates(self):
+        with patch("pubmatrix.core._fetch_count",
+                   side_effect=RuntimeError("boom")), \
+             patch("pubmatrix.core.time.sleep"):
+            with pytest.raises(RuntimeError, match="boom"):
+                pubmatrix(["A1", "A2"], ["B1"], n_workers=2)
