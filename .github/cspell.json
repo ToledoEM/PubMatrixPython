@@ -1,0 +1,35 @@
+{
+  "version": "0.2",
+  "language": "en-GB",
+  "globRoot": "..",
+  "files": [
+    "docs/**/*.md"
+  ],
+  "ignorePaths": [
+    "docs/notebooks/*_files/**"
+  ],
+  "ignoreRegExpList": [
+    "/^\\s*```[\\s\\S]*?^\\s*```/gm",
+    "/`[^`\\n]+`/g",
+    "/<table[\\s\\S]*?<\\/table>/g",
+    "/<style[\\s\\S]*?<\\/style>/g"
+  ],
+  "words": [
+    "ADIPOQ",
+    "ADRB",
+    "CTNNB",
+    "Enrique",
+    "eutils",
+    "Hosack",
+    "INSR",
+    "Jaccard",
+    "Lempicki",
+    "LEPR",
+    "MEDLINE",
+    "NCBI",
+    "PPARG",
+    "pubmed",
+    "pytest",
+    "venv"
+  ]
+}

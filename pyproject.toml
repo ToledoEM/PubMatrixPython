@@ -51,6 +51,10 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.5",
 ]
+docs = [
+    "zensical>=0.0.71; python_version >= '3.11'",
+    "nbconvert>=7",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["pubmatrix"]
