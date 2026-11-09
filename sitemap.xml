@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+      <url>
+        <loc>https://toledoem.github.io/PubMatrixPython/</loc>
+      </url>
+      <url>
+        <loc>https://toledoem.github.io/PubMatrixPython/notebooks/01_pubmatrix/</loc>
+      </url>
+      <url>
+        <loc>https://toledoem.github.io/PubMatrixPython/notebooks/02_example_wnt/</loc>
+      </url>
+      <url>
+        <loc>https://toledoem.github.io/PubMatrixPython/performance/</loc>
+      </url>
+      <url>
+        <loc>https://toledoem.github.io/PubMatrixPython/troubleshooting/</loc>
+      </url>
+</urlset>
